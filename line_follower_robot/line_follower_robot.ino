@@ -23,9 +23,13 @@ UltrasonicSensor US_L = {A3, A4};   // Left
 UltrasonicSensor US_M = {A5, 2};    // Middle
 UltrasonicSensor US_R = {13, 10};   // Right
 
+// Motores
 AF_DCMotor motorL(3); // Left
 AF_DCMotor motorR(2); // Right
 
+int currentSpeed = 0;
+
+// Funções de inicialização
 void initPins() {
   // IR como entrada
   pinMode(IR_C.pin, INPUT);
@@ -44,9 +48,11 @@ void initPins() {
 }
 
 void initMotors() {
-  motorR.setSpeed(255);
-  motorL.setSpeed(255);
+  motorR.setSpeed(current_speed);
+  motorL.setSpeed(current_speed);
 }
+
+// Funções pra usar os sensores
 
 long measureDistance(UltrasonicSensor sensor) {
   digitalWrite(sensor.trigPin, LOW);
@@ -64,6 +70,33 @@ int detectLine(IRSensor sensor) {
   return digitalRead(sensor.pin);
 }
 
+// Funções pra controlar os motores
+
+void accelerate(int direction, uint8_t targetSpeed, int stepDelay = 10) {
+  motor.run(direction);
+  
+  while(abs(currentSpeed) < abs(targetSpeed)) {
+    if(targetSpeed > currentSpeed)
+      currentSpeed++;
+    else 
+      currentSpeed--;
+
+    delay(stepDelay);
+  }
+}
+
+void brake(int stepDelay = 10) {
+  for (int speed = currentSpeed; speed >= 0; speed--) {
+    motor.setSpeed(speed);
+    motor.setSpeed(speed);
+    delay(stepDelay);
+  }
+  
+  motor->run(RELEASE);  // Stop the motor
+}
+
+// Funções de teste
+
 void testSensors() {
   // Leitura dos sensores IR
   int irL = detectLine(IR_L);
@@ -74,6 +107,8 @@ void testSensors() {
   long usL = measureDistance(US_L);
   long usR = measureDistance(US_R);
   long usC = measureDistance(US_M);  // Middle
+
+  Serial.println("Testando sensores:")
 
   // Imprime cabeçalhos
   Serial.println("      L     C     R");
@@ -96,27 +131,21 @@ void testSensors() {
 }
 
 void testMotors() {
-  //Serial.println("Testando motores: movimento para frente...");
-  motorR.run(FORWARD);
-  motorL.run(FORWARD);
-  delay(500);
+  Serial.print("Testando motores: movimento para frente...");
+  
+  accelerate(FORWARD, 255);
+  brake();
+  
+  Serial.print("Testando motores: movimento para trás...");
 
-  /*
-  Serial.println("Parando motores...");
-  motorR.run(RELEASE);
-  motorL.run(RELEASE);
-  delay(5000);
+  accelerate(BACKWARD, 255);
+  brake();  
 
-  Serial.println("Testando motores: movimento para trás...");
-  motorR.run(BACKWARD);
-  motorL.run(BACKWARD);
-  delay(10000);
+  Serial.print("Testando motores: parando...");
+  
+  brake();
 
-  Serial.println("Parando motores...");
-  motorR.run(RELEASE);
-  motorL.run(RELEASE);
-  delay(5000);
-  */
+  delay(1000);
 }
 
 void setup() {
