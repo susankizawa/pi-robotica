@@ -111,8 +111,8 @@ UltrasonicSensor usF(A5, 2);    // Front
 UltrasonicSensor usR(13, 10);   // Right
 
 // Motores
-AF_DCMotor motorL(3);
-AF_DCMotor motorR(2);
+AF_DCMotor motorL(1, MOTOR12_2KHZ);
+AF_DCMotor motorR(2, MOTOR12_2KHZ);
 
 // Rodas
 Wheel wheelL(&motorL);
@@ -200,11 +200,13 @@ void testSensors() {
   delay(500);
 }
 
-void testMotors() {
+void testMotors(int speed, int timeDelay) {
   Serial.println("Testando motores: movimento para frente...");
   
-  accelerate(255);
-  delay(2000);
+  accelerate(speed);
+  Serial.println(wheelR.getSpeed());
+  delay(timeDelay);
+  Serial.println(wheelR.getSpeed());
 
   Serial.println("Testando motores: parando...");
 
@@ -213,8 +215,10 @@ void testMotors() {
   
   Serial.println("Testando motores: movimento para trás...");
 
-  accelerate(-255);
-  delay(2000);
+  accelerate(-speed);
+  Serial.println(wheelR.getSpeed());
+  delay(timeDelay);
+  Serial.println(wheelR.getSpeed());
 
   Serial.println("Testando motores: parando...");
 
@@ -230,5 +234,5 @@ void setup() {
 }
 
 void loop() {
-  testMotors();
+  testMotors(200, 10000);
 }
