@@ -2,47 +2,43 @@
 
 // Aviso! Não usar o servo 2, porque o pino 10 que precisa pra usar o servo 2 está sendo usado pra controlar um dos sensores ultrassônicos
 
-// Usar as funções de calibração pra medir e calcular os valores
-const int TIME_PER_DEGREE = 4000;
-const int TIME_PER_CM = 40; 
-
 class IRSensor {
   private:
-    int pin;
+    int _pin;
 
   public:
     // Construtor
-    IRSensor(int pin) : pin(pin) {
-      pinMode(pin, INPUT);
+    IRSensor(int pin) : _pin(pin) {
+      pinMode(_pin, INPUT);
     }
 
     // Métodos
     int detectLine() {
-      return digitalRead(pin);
+      return digitalRead(_pin);
     }
 };
 
 class UltrasonicSensor {
   private:
-    int trigPin;
-    int echoPin;
+    int _trigPin;
+    int _echoPin;
 
   public:
     // Construtor
-    UltrasonicSensor(int trigPin, int echoPin) : trigPin(trigPin), echoPin(echoPin) {
-      pinMode(trigPin, OUTPUT);
-      pinMode(echoPin, INPUT);
+    UltrasonicSensor(int trigPin, int echoPin) : _trigPin(trigPin), _echoPin(echoPin) {
+      pinMode(_trigPin, OUTPUT);
+      pinMode(_echoPin, INPUT);
     }
 
     // Métodos
     long measureDistance() {
-      digitalWrite(trigPin, LOW);
+      digitalWrite(_trigPin, LOW);
       delayMicroseconds(2);
-      digitalWrite(trigPin, HIGH);
+      digitalWrite(_trigPin, HIGH);
       delayMicroseconds(10);
-      digitalWrite(trigPin, LOW);
+      digitalWrite(_trigPin, LOW);
 
-      long duration = pulseIn(echoPin, HIGH);
+      long duration = pulseIn(_echoPin, HIGH);
       long distance = duration * 0.034 / 2;
       return distance;
     }
@@ -51,54 +47,82 @@ class UltrasonicSensor {
 class Wheel {
   private:
     AF_DCMotor *motor;
-    int currentSpeed;
-    int targetSpeed;
-    unsigned long lastStepTime;
-    int stepDelay;
+    int _currentSpeed;
+    int _targetSpeed;
+    unsigned long _lastUpdateTime;
+    int _step;
+    int _timeDelay;
 
   public:
     // Construtor
     Wheel(AF_DCMotor *motor) : motor(motor) {
-      currentSpeed = 0;
-      targetSpeed = 0;
-      lastStepTime = 0;
-      stepDelay = 10;
+      _currentSpeed = 0;
+      _targetSpeed = 0;
+      _lastUpdateTime = 0;
+      _step = 3;
+      _timeDelay = 1;
     }
 
     // Métodos
-    int getSpeed() { return currentSpeed; }
+    int getSpeed() { return _currentSpeed; }
 
-    void setTargetSpeed(int target, int delay = 10) {
-      targetSpeed = target;
-      stepDelay = delay;
+    void setTargetSpeed(int target) {
+      _targetSpeed = target;
+    }
+
+    void setStep(int step) {
+      _step = step;
+    }
+
+    void setTimeDelay(int timeDelay) {
+      _timeDelay = timeDelay;
     }
 
     bool update() {
-      if (currentSpeed == targetSpeed) return true;
+      if (_currentSpeed == _targetSpeed) return true;
 
       // Verifica se passou tempo o suficiente pra ele atualizar
-      if (millis() - lastStepTime >= stepDelay) {
-        if (targetSpeed > currentSpeed)
-          currentSpeed++;  // Acelera
+      if (millis() - _lastUpdateTime >= _timeDelay) {
+        if (_targetSpeed > _currentSpeed)
+          _currentSpeed = min(_currentSpeed + _step, _targetSpeed);  // Acelera
         else
-          currentSpeed--; // Desacelera
-        
-        motor->setSpeed(abs(currentSpeed));  // Atualiza velocidade do motor
-        
+          _currentSpeed = max(_currentSpeed - _step, _targetSpeed); // Desacelera
+
+        if(_currentSpeed > 255) {
+          _currentSpeed = 255;
+        } else if(_currentSpeed < -255) {
+          _currentSpeed = -255;
+        }
+
+        motor->setSpeed(abs(_currentSpeed));  // Atualiza velocidade do motor
+
         // Diz pro motor que direção girar ou se parar
-        if (currentSpeed > 0)
+        if (_currentSpeed > 0)
           motor->run(FORWARD);
-        else if (currentSpeed < 0)
+        else if (_currentSpeed < 0)
           motor->run(BACKWARD);
         else
           motor->run(RELEASE);
         
-        lastStepTime = millis();  // Marca o tempo da última atualização
+        _lastUpdateTime = millis();  // Marca o tempo da última atualização
       }
 
-      return currentSpeed == targetSpeed;
+      return _currentSpeed == _targetSpeed;
     }
 };
+
+enum State {
+  IDLE,
+  MOVING,
+  FOLLOWING_LINE,
+  AVOIDING_OBSTACLE
+};
+
+// Usar as funções de calibração pra medir e calcular os valores
+const int TIME_PER_DEGREE = 4000;
+const int TIME_PER_CM = 40; 
+
+State currentState = IDLE;
 
 // Sensores IR
 IRSensor irR(A1);  // Right
@@ -111,24 +135,24 @@ UltrasonicSensor usF(A5, 2);    // Front
 UltrasonicSensor usR(13, 10);   // Right
 
 // Motores
-AF_DCMotor motorL(1, MOTOR12_2KHZ);
-AF_DCMotor motorR(2, MOTOR12_2KHZ);
+AF_DCMotor motorL(1, MOTOR12_1KHZ);
+AF_DCMotor motorR(2, MOTOR12_1KHZ);
 
 // Rodas
 Wheel wheelL(&motorL);
 Wheel wheelR(&motorR);
 
 // Funções pra movimentar o robô
-void accelerate(int targetSpeed, int stepDelay = 10) {
-  wheelR.setTargetSpeed(targetSpeed, stepDelay);
-  wheelL.setTargetSpeed(targetSpeed, stepDelay);
+void accelerate(int targetSpeed) {
+  wheelR.setTargetSpeed(targetSpeed);
+  wheelL.setTargetSpeed(targetSpeed);
 
   while (!wheelR.update() | !wheelL.update()) { }
 }
 
-void brake(int stepDelay = 10) {
-  wheelR.setTargetSpeed(0, stepDelay);
-  wheelL.setTargetSpeed(0, stepDelay);
+void brake() {
+  wheelR.setTargetSpeed(0);
+  wheelL.setTargetSpeed(0);
 
   while (!wheelR.update() | !wheelL.update()) { }
 }
@@ -204,9 +228,7 @@ void testMotors(int speed, int timeDelay) {
   Serial.println("Testando motores: movimento para frente...");
   
   accelerate(speed);
-  Serial.println(wheelR.getSpeed());
   delay(timeDelay);
-  Serial.println(wheelR.getSpeed());
 
   Serial.println("Testando motores: parando...");
 
@@ -216,9 +238,7 @@ void testMotors(int speed, int timeDelay) {
   Serial.println("Testando motores: movimento para trás...");
 
   accelerate(-speed);
-  Serial.println(wheelR.getSpeed());
   delay(timeDelay);
-  Serial.println(wheelR.getSpeed());
 
   Serial.println("Testando motores: parando...");
 
@@ -231,8 +251,43 @@ void testMotors(int speed, int timeDelay) {
 void setup() {
   Serial.begin(9600);
   Serial.println("INICIALIZAÇÃO COMPLETA!");
+  currentState = MOVING;
 }
 
 void loop() {
-  testMotors(200, 10000);
+  testSensors();
+
+  int obstacleDetected = usF.measureDistance() < 15;
+  int speed = 100;
+
+  switch(currentState) {
+    case IDLE:
+      // espera comando
+      break;
+      
+    case MOVING:
+      if (obstacleDetected) {
+        Serial.println("Obstáculo detectado! Parando...");
+        currentState = AVOIDING_OBSTACLE;
+        break;
+      }
+
+      Serial.println("Nenhum obstáculo detectado. Avançando...");
+      accelerate(speed);
+
+    case FOLLOWING_LINE:
+      break;
+
+    case AVOIDING_OBSTACLE:
+      if (!obstacleDetected) {
+        currentState = MOVING;
+        break;
+      }
+
+      brake();
+      break;
+  }
+
+  //wheelR.update();
+  //wheelL.update();
 }
