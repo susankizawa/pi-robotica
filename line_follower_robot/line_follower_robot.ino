@@ -115,7 +115,8 @@ enum State {
   IDLE,
   MOVING,
   FOLLOWING_LINE,
-  AVOIDING_OBSTACLE
+  AVOIDING_OBSTACLE,
+  TURNING
 };
 
 // Usar as funções de calibração pra medir e calcular os valores
@@ -157,6 +158,13 @@ void brake() {
   while (!wheelR.update() | !wheelL.update()) { }
 }
 
+void turnAround(int targetSpeed) {
+  wheelL.setTargetSpeed(targetSpeed);
+  wheelR.setTargetSpeed(0);
+
+  while (!wheelR.update() | !wheelL.update()) { }
+}
+
 // Funções pra calibração
 int calibrateAngularMovement(int speed, bool clockwise, int testTime = 2000) {
   // ajuste o delay até girar aproximadamente 360° (calibração)
@@ -164,11 +172,10 @@ int calibrateAngularMovement(int speed, bool clockwise, int testTime = 2000) {
 
   if (clockwise) {
     wheelL.setTargetSpeed(speed);
-    wheelR.setTargetSpeed(-speed);
   } else {
     wheelL.setTargetSpeed(-speed);
-    wheelR.setTargetSpeed(speed);
   }
+  wheelR.setTargetSpeed(0);
 
   while (!wheelR.update() | !wheelL.update()) { }
 
@@ -257,8 +264,8 @@ void setup() {
 void loop() {
   testSensors();
 
-  int obstacleDetected = usF.measureDistance() < 15;
-  int speed = 100;
+  int obstacleDetected = usF.measureDistance() < 60;
+  int speed = 200;
 
   switch(currentState) {
     case IDLE:
@@ -279,15 +286,16 @@ void loop() {
       break;
 
     case AVOIDING_OBSTACLE:
-      if (!obstacleDetected) {
-        currentState = MOVING;
-        break;
-      }
-
       brake();
+      accelerate(-speed);
+      delay(1000);
+      turnAround(speed);
+      delay(1000);
+      brake();
+      currentState = MOVING;
+      break;
+    
+    case TURNING:
       break;
   }
-
-  //wheelR.update();
-  //wheelL.update();
 }
