@@ -13,7 +13,7 @@ class IRSensor {
     }
 
     // Métodos
-    int detectLine() {
+    bool detectLine() {
       return digitalRead(_pin);
     }
 };
@@ -113,7 +113,6 @@ class Wheel {
 
 enum State {
   IDLE,
-  MOVING,
   FOLLOWING_LINE,
   AVOIDING_OBSTACLE
 };
@@ -153,6 +152,20 @@ void accelerate(int targetSpeed) {
 void brake() {
   wheelR.setTargetSpeed(0);
   wheelL.setTargetSpeed(0);
+
+  while (!wheelR.update() | !wheelL.update()) { }
+}
+
+void turnLeft(int targetSpeed) {
+  wheelL.setTargetSpeed(targetSpeed);
+  wheelR.setTargetSpeed(targetSpeed / 2);
+
+  while (!wheelR.update() | !wheelL.update()) { }
+}
+
+void turnRight(int targetSpeed) {
+  wheelL.setTargetSpeed(targetSpeed / 2);
+  wheelR.setTargetSpeed(targetSpeed);
 
   while (!wheelR.update() | !wheelL.update()) { }
 }
@@ -257,37 +270,46 @@ void setup() {
 void loop() {
   testSensors();
 
-  int obstacleDetected = usF.measureDistance() < 15;
+  bool lineDetectedL = irL.detectLine();
+  bool lineDetectedC = irC.detectLine();
+  bool lineDetectedR = irR.detectLine();
+  bool obstacleDetected = usF.measureDistance() < 15;
   int speed = 100;
 
   switch(currentState) {
     case IDLE:
-      // espera comando
+      if (lineDetectedL || lineDetectedC || lineDetectedR) {
+        currentState = FOLLOWING_LINE;
+      }
       break;
-      
-    case MOVING:
+    
+    case FOLLOWING_LINE:
       if (obstacleDetected) {
-        Serial.println("Obstáculo detectado! Parando...");
+        Serial.println("Obstáculo detectado!");
         currentState = AVOIDING_OBSTACLE;
         break;
       }
 
-      Serial.println("Nenhum obstáculo detectado. Avançando...");
-      accelerate(speed);
+      if (lineDetectedC) {
+        accelerate(speed);
+      } else if (lineDetectedL) {
+        turnRight(speed);
+      } else if (lineDetectedR) {
+        turnLeft(speed);
+      } else if (!lineDetectedL && !lineDetectedC && !lineDetectedR) {
+        brake();
+        currentState = IDLE;
+      }
 
-    case FOLLOWING_LINE:
       break;
 
     case AVOIDING_OBSTACLE:
       if (!obstacleDetected) {
-        currentState = MOVING;
+        currentState = FOLLOWING_LINE;
         break;
       }
 
       brake();
       break;
   }
-
-  //wheelR.update();
-  //wheelL.update();
 }
