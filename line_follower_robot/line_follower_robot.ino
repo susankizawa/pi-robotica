@@ -52,6 +52,7 @@ class Wheel {
     unsigned long _lastUpdateTime;
     int _step;
     int _timeDelay;
+    bool _needsKick;
 
   public:
     // Construtor
@@ -61,12 +62,16 @@ class Wheel {
       _lastUpdateTime = 0;
       _step = 3;
       _timeDelay = 1;
+      _needsKick = false;
     }
 
     // Métodos
     int getSpeed() { return _currentSpeed; }
 
     void setTargetSpeed(int target) {
+      if (_currentSpeed == 0 && target != 0) {
+        _needsKick = true;
+      }
       _targetSpeed = target;
     }
 
@@ -79,6 +84,16 @@ class Wheel {
     }
 
     bool update() {
+      if (_needsKick) {
+        int kickSpeed = (_targetSpeed > 0) ? 255 : -255;  // Velocidade máxima pro kick
+        motor->setSpeed(abs(kickSpeed));
+        motor->run((kickSpeed > 0) ? FORWARD : BACKWARD);
+        delay(250);  // Kick de 150ms (ajuste esse valor!)
+        _needsKick = false;
+        _currentSpeed = kickSpeed * 0.6;  // Começa em ~60% da velocidade depois do kick
+        _lastUpdateTime = millis();
+      }
+
       if (_currentSpeed == _targetSpeed) return true;
 
       // Verifica se passou tempo o suficiente pra ele atualizar
@@ -114,14 +129,26 @@ class Wheel {
 enum State {
   IDLE,
   FOLLOWING_LINE,
-  AVOIDING_OBSTACLE
+  AVOIDING_OBSTACLE,
+  TEST_TURN,
+  TEST_STRAIGHT
+};
+
+enum LastDirection {
+  NONE,
+  LAST_LEFT,
+  LAST_RIGHT
 };
 
 // Usar as funções de calibração pra medir e calcular os valores
 const int TIME_PER_DEGREE = 4000;
 const int TIME_PER_CM = 40; 
+const float FACTOR_SMOOTH = 0.6;
+const float FACTOR_SHARP = -1;
+const float MIN_OBSTACLE_DISTANCE = 60;
 
 State currentState = IDLE;
+LastDirection lastCorrection = NONE;
 
 // Sensores IR
 IRSensor irR(A1);  // Right
@@ -145,29 +172,31 @@ Wheel wheelR(&motorR);
 void accelerate(int targetSpeed) {
   wheelR.setTargetSpeed(targetSpeed);
   wheelL.setTargetSpeed(targetSpeed);
-
-  while (!wheelR.update() | !wheelL.update()) { }
 }
 
 void brake() {
   wheelR.setTargetSpeed(0);
   wheelL.setTargetSpeed(0);
-
-  while (!wheelR.update() | !wheelL.update()) { }
 }
 
-void turnLeft(int targetSpeed) {
-  wheelL.setTargetSpeed(targetSpeed);
-  wheelR.setTargetSpeed(targetSpeed / 2);
-
-  while (!wheelR.update() | !wheelL.update()) { }
-}
-
-void turnRight(int targetSpeed) {
-  wheelL.setTargetSpeed(targetSpeed / 2);
+void turnLeftSharp(int targetSpeed) {
+  wheelL.setTargetSpeed(targetSpeed * FACTOR_SHARP);
   wheelR.setTargetSpeed(targetSpeed);
+}
 
-  while (!wheelR.update() | !wheelL.update()) { }
+void turnLeftSmooth(int speed) {
+  wheelL.setTargetSpeed(speed * FACTOR_SMOOTH);
+  wheelR.setTargetSpeed(speed);
+}
+
+void turnRightSharp(int targetSpeed) {
+  wheelL.setTargetSpeed(targetSpeed);
+  wheelR.setTargetSpeed(targetSpeed * FACTOR_SHARP);
+}
+
+void turnRightSmooth(int speed) {
+  wheelL.setTargetSpeed(speed);
+  wheelR.setTargetSpeed(speed * FACTOR_SMOOTH); 
 }
 
 // Funções pra calibração
@@ -233,8 +262,6 @@ void testSensors() {
   Serial.print(usR.measureDistance()); Serial.println("cm  ");
 
   Serial.println("---------------------");
-
-  delay(500);
 }
 
 void testMotors(int speed, int timeDelay) {
@@ -264,43 +291,81 @@ void testMotors(int speed, int timeDelay) {
 void setup() {
   Serial.begin(9600);
   Serial.println("INICIALIZAÇÃO COMPLETA!");
-  currentState = MOVING;
+  currentState = TEST_STRAIGHT;
 }
 
 void loop() {
-  testSensors();
-
-  bool lineDetectedL = irL.detectLine();
-  bool lineDetectedC = irC.detectLine();
-  bool lineDetectedR = irR.detectLine();
-  bool obstacleDetected = usF.measureDistance() < 15;
-  int speed = 100;
+  // testSensors();
+  wheelL.update();
+  wheelR.update();
+  
+  bool L, C, R, obstacleDetected;
+  int speed = 150;
+  static unsigned long testStartTime = 0;
+  static unsigned long elapsed;
+  static bool goingForward = true;
+  static bool clockwise = true;
 
   switch(currentState) {
     case IDLE:
-      if (lineDetectedL || lineDetectedC || lineDetectedR) {
-        currentState = FOLLOWING_LINE;
-      }
+      //L = irL.detectLine();
+      //C = irC.detectLine();
+      //R = irR.detectLine();
+
+      //if (L || C || R) {
+      //  currentState = FOLLOWING_LINE;
+      //}
       break;
     
     case FOLLOWING_LINE:
+      L = irL.detectLine();
+      C = irC.detectLine();
+      R = irR.detectLine();
+      obstacleDetected = usF.measureDistance() < MIN_OBSTACLE_DISTANCE;
+
       if (obstacleDetected) {
-        Serial.println("Obstáculo detectado!");
+        //Serial.println("Obstáculo detectado!");
+        brake();
         currentState = AVOIDING_OBSTACLE;
         break;
       }
 
-      if (lineDetectedC) {
-        accelerate(speed);
-      } else if (lineDetectedL) {
-        turnRight(speed);
-      } else if (lineDetectedR) {
-        turnLeft(speed);
-      } else if (!lineDetectedL && !lineDetectedC && !lineDetectedR) {
-        brake();
-        currentState = IDLE;
+      if (C) {
+        // 1. Linha Centralizada (ou centralizada com leve desvio)
+        if (L && !R) { 
+            // Linha levemente à esquerda. Vira para a direita (SUAVE)
+            turnRightSmooth(speed);
+            lastCorrection = LAST_RIGHT; 
+        } else if (!L && R) { 
+            // Linha levemente à direita. Vira para a esquerda (SUAVE)
+            turnLeftSmooth(speed);
+            lastCorrection = LAST_LEFT; 
+        } else { // (F, T, F) ou (T, T, T) - (F, T, T) já foi pego
+            // Perfeito: Linha no centro.
+            accelerate(speed);
+        } 
+      } else if (!C && (L || R)) {
+        // 2. Linha fora do centro (correção ACENTUADA)
+        if (L && !R) { // (T, F, F)
+            // Linha totalmente à esquerda. Vira para a direita (ACENTUADA)
+            turnRightSharp(speed); 
+            lastCorrection = LAST_RIGHT; 
+        } else if (!L && R) { // (F, F, T)
+            // Linha totalmente à direita. Vira para a esquerda (ACENTUADA)
+            turnLeftSharp(speed);
+            lastCorrection = LAST_LEFT; 
+        } 
+      } else { // (!L && !C && !R) -- 3. Linha Perdida  
+        // Rotina de BUSCA (usa o giro acentuado na última direção conhecida)
+        if (lastCorrection == LAST_RIGHT) {
+            turnLeftSharp(speed); // Gira para a esquerda bruscamente (Busca)
+        } else if (lastCorrection == LAST_LEFT) {
+            turnRightSharp(speed); // Gira para a direita bruscamente (Busca)
+        } else {
+            // Se for a primeira vez que perde a linha, gire em uma direção padrão (ex: direita)
+            turnRightSharp(speed);
+        }
       }
-
       break;
 
     case AVOIDING_OBSTACLE:
@@ -308,8 +373,53 @@ void loop() {
         currentState = FOLLOWING_LINE;
         break;
       }
-
-      brake();
+      break;
+    case TEST_TURN:
+      // Inicializa o timer na primeira execução
+      if (testStartTime == 0) {
+        testStartTime = millis();
+        turnRightSharp(speed);
+      }
+      
+      elapsed = millis() - testStartTime;
+      
+      if (clockwise && elapsed >= 10000) {
+        // Passou 2s indo pra frente, inverte
+        turnLeftSharp(speed);
+        clockwise = false;
+        testStartTime = millis(); // Reseta o timer
+      } else if (!clockwise && elapsed >= 10000) {
+        // Passou 2s indo pra trás, terminou o teste
+        brake();
+        clockwise = true; // Reset pro próximo teste
+        testStartTime = 0;
+        // Opcional: muda de estado aqui se quiser
+        currentState = IDLE;
+      }
+      
+      break;
+    case TEST_STRAIGHT:
+      // Inicializa o timer na primeira execução
+      if (testStartTime == 0) {
+        testStartTime = millis();
+        accelerate(speed);
+      }
+      
+      elapsed = millis() - testStartTime;
+      
+      if (goingForward && elapsed >= 2000) {
+        // Passou 2s indo pra frente, inverte
+        accelerate(-speed);
+        goingForward = false;
+        testStartTime = millis(); // Reseta o timer
+      } else if (!goingForward && elapsed >= 2000) {
+        // Passou 2s indo pra trás, terminou o teste
+        brake();
+        goingForward = true; // Reset pro próximo teste
+        testStartTime = 0;
+        // Opcional: muda de estado aqui se quiser
+        currentState = TEST_TURN;
+      }
       break;
   }
 }
