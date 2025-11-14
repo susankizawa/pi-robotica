@@ -31,7 +31,7 @@ Ultrasonic usL(usLTrig, usLEcho);
 AF_DCMotor motorL(1, MOTOR12_1KHZ);
 AF_DCMotor motorR(2, MOTOR12_1KHZ);
 
-const int speed = 150;
+const int speed = 255;
 unsigned int distance;
 
 State currentState;
@@ -89,35 +89,32 @@ void avoidObstacle() {
   motorL.setSpeed(speed);
   motorR.run(BACKWARD);
   motorL.run(BACKWARD);
-  delay(2000);
-  Serial.println("Desviando do obstáculo...");
+  delay(750);
+  
+  Serial.println("Dando a volta no obstaculo...");
   motorR.setSpeed(speed);
   motorL.setSpeed(speed);
   motorR.run(FORWARD);
   motorL.run(BACKWARD);
-  delay(1000);
-  motorR.setSpeed(speed);
-  motorL.setSpeed(speed);
-  motorR.run(BACKWARD);
-  motorL.run(FORWARD);
-  delay(1000);
-  Serial.println("Andando do lado do obstáculo...");
+  delay(750);
+
   motorR.setSpeed(speed);
   motorL.setSpeed(speed);
   motorR.run(FORWARD);
   motorL.run(FORWARD);
-  delay(2000);
+  delay(1250);
+
   Serial.println("Voltando pra linha...");
   motorR.setSpeed(speed);
   motorL.setSpeed(speed);
   motorR.run(BACKWARD);
   motorL.run(FORWARD);
-  delay(1000);
+  delay(1700);
+
   motorR.setSpeed(speed);
   motorL.setSpeed(speed);
   motorR.run(FORWARD);
-  motorL.run(BACKWARD);
-  delay(1000);
+  motorL.run(FORWARD);
 }
 
 void setup() {
@@ -134,7 +131,9 @@ void loop() {
     case FOLLOWING_LINE:      
       distance = usF.read();
 
-      if(distance < 10) {
+      //Serial.println(distance);
+
+      if(distance > 5 && distance < 15) {
         Serial.println("Obstaculo detectado!");
         currentState = AVOIDING_OBSTACLE;
         break;
