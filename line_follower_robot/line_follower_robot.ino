@@ -31,7 +31,7 @@ Ultrasonic usL(usLTrig, usLEcho);
 AF_DCMotor motorL(1, MOTOR12_1KHZ);
 AF_DCMotor motorR(2, MOTOR12_1KHZ);
 
-const int speed = 255;
+const int speed = 150;
 unsigned int distance;
 
 State currentState;
@@ -117,6 +117,47 @@ void avoidObstacle() {
   motorL.run(FORWARD);
 }
 
+void goAroundObstacle() {
+  unsigned int frontDist = usF.read();
+  unsigned int rightDist = usR.read();
+  
+  const int TARGET_DISTANCE = 20;
+  const int SAFE_FRONT = 30;
+  
+  // Obstáculo na frente - vira esquerda
+  if(frontDist < SAFE_FRONT) {
+    Serial.println("Obstáculo na frente");
+    motorR.setSpeed(speed);
+    motorL.setSpeed(speed);
+    motorR.run(FORWARD);
+    motorL.run(BACKWARD);
+  }
+  // Muito perto - afasta
+  else if(rightDist < TARGET_DISTANCE - 5) {
+    Serial.println("Afasta");
+    motorR.setSpeed(speed);
+    motorL.setSpeed(speed * 0.6);
+    motorR.run(FORWARD);
+    motorL.run(BACKWARD);
+  }
+  // Muito longe - aproxima
+  else if(rightDist > TARGET_DISTANCE + 5) {
+    Serial.println("Aproxima");
+    motorR.setSpeed(speed * 0.6);
+    motorL.setSpeed(speed);
+    motorR.run(BACKWARD);
+    motorL.run(FORWARD);
+  }
+  // Distância boa - reto
+  else {
+    Serial.println("Em frente");
+    motorR.setSpeed(speed);
+    motorL.setSpeed(speed);
+    motorR.run(FORWARD);
+    motorL.run(FORWARD);
+  }
+}
+
 void setup() {
   Serial.begin(9600);
   pinMode(irR, INPUT);
@@ -142,9 +183,12 @@ void loop() {
       followLine();
       break;
     case AVOIDING_OBSTACLE:
-      Serial.println("Desviando do obstáculo...");
-      avoidObstacle();
-      currentState = FOLLOWING_LINE;
+      //Serial.println("Desviando do obstáculo...");
+      goAroundObstacle();
+      if(usR.read() > 50 && (digitalRead(irL) || digitalRead(irC) || digitalRead(irR))) {
+        Serial.println("Linha recuperada!");
+        currentState = FOLLOWING_LINE;
+      }
       break;
   }
 }
