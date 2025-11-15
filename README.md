@@ -31,10 +31,9 @@ Neste estado, o robô:
 
 Para mais detalhes sobre a lógica do robô:
 
-* [`logica-seguidor.md`](docs/logica-seguidor.md)
-* [`logica-desvio.md`](docs/logica-desvio.md)
-* [`maquina-de-estados.md`](docs/maquina-de-estados.md)
-* [`melhorias.md`](docs/melhorias.md)
+* [Lógica do Seguidor de Linha](docs/logica-seguidor.md)
+* [Lógica de Desvio de Obstáculos](docs/logica-desvio.md)
+* [Máquina de estados](docs/maquina-de-estados.md)
 
 ## ⚙️ Hardware Utilizado
 
