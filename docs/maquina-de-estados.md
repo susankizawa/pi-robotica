@@ -8,7 +8,7 @@ O robô opera com uma **máquina de estados simples**, responsável por alternar
 
 * Lê continuamente os três sensores IR.
 * Mantém a trajetória na linha usando curvas suaves ou correções mais intensas.
-* Permanece neste estado enquanto **nenhum obstáculo válido** é detectado pelo sensor ultrassônico frontal.
+* Permanece neste estado enquanto **nenhum obstáculo** é detectado pelo sensor ultrassônico frontal.
 
 ### **2. AVOIDING_OBSTACLE**
 
@@ -20,11 +20,11 @@ O robô opera com uma **máquina de estados simples**, responsável por alternar
 
 | Estado Atual      | Condição de Transição                                | Próximo Estado    |
 | ----------------- | ---------------------------------------------------- | ----------------- |
-| FOLLOWING_LINE    | Sensor ultrassônico frontal detecta obstáculo válido | AVOIDING_OBSTACLE |
-| AVOIDING_OBSTACLE | Sequência completa de desvio (inclui avanço final)   | FOLLOWING_LINE    |
+| FOLLOWING_LINE    | Sensor ultrassônico frontal detecta obstáculo        | AVOIDING_OBSTACLE |
+| AVOIDING_OBSTACLE | Após concluir a sequência completa de desvio         | FOLLOWING_LINE    |
 
 ## Observações
 
-* Leituras menores que 5 cm são ignoradas para evitar valores fantasmas do ultrassônico.
-* O avanço final curto após o desvio permite que a lógica de seguir linha volte rapidamente a atuar, garantindo que os sensores IR detectem a faixa assim que ela reaparecer.
+* Leituras menores que 5 cm são ignoradas para filtrar valores atípicos do ultrassônico.
+* O avanço final curto após o desvio permite que a lógica de seguir linha volte rapidamente a atuar, garantindo que os sensores IR detectem a faixa assim que ela reaparecer e que o robô avance na direção da linha mesmo que ele seja interrompido no pico do V.
 * A máquina de estados foi escolhida por ser a abordagem mais adequada quando o robô precisa alternar entre duas lógicas distintas (seguir linha e desviar obstáculos). Ela organiza o fluxo do programa e evita misturar comportamentos no `loop()`, facilitando manutenção e expansão futura.
