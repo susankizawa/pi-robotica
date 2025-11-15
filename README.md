@@ -77,6 +77,6 @@ Para mais detalhes sobre a lógica do robô:
 
 * Guilherme Mafioletti Quintana
 * Jonathan Almeida de Camargo
-* Leonardo Augusto Sanzovo
-* Susan Kaori Izawa
+* [Leonardo Augusto Sanzovo](https://github.com/Kerozu)
+* [Susan Kaori Izawa](https://github.com/susankizawa)
 * Tiago Unlauf Boing Nack
