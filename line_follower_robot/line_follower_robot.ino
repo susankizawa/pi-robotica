@@ -291,7 +291,7 @@ void loop() {
 
     case AVOIDING_OBSTACLE:
       brake();
-      accelerate(-turningSpeed);
+      accelerate(-speed);
       delay(1000);
       turnAround(turningSpeed);
       delay(1000);
