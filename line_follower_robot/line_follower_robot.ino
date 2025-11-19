@@ -123,7 +123,12 @@ enum State {
 const int TIME_PER_DEGREE = 4000;
 const int TIME_PER_CM = 40; 
 
+const int speed = 200;
+const int turningSpeed = 255;
+
 State currentState = IDLE;
+bool obstacleDetected;
+
 
 // Sensores IR
 IRSensor irR(A1);  // Right
@@ -264,8 +269,7 @@ void setup() {
 void loop() {
   testSensors();
 
-  int obstacleDetected = usF.measureDistance() < 60;
-  int speed = 200;
+  obstacleDetected = usF.measureDistance() < 60;
 
   switch(currentState) {
     case IDLE:
@@ -287,15 +291,12 @@ void loop() {
 
     case AVOIDING_OBSTACLE:
       brake();
-      accelerate(-speed);
+      accelerate(-turningSpeed);
       delay(1000);
-      turnAround(speed);
+      turnAround(turningSpeed);
       delay(1000);
       brake();
       currentState = MOVING;
-      break;
-    
-    case TURNING:
       break;
   }
 }
